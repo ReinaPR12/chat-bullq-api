@@ -5,6 +5,7 @@ import { PrismaService } from '../../../database/prisma.service';
 import { IdempotencyService } from './idempotency.service';
 import { ContactResolverService } from './contact-resolver.service';
 import { ConversationResolverService } from './conversation-resolver.service';
+import { OutboundWebhookService } from './outbound-webhook.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { NormalizedInboundMessage, StatusUpdate } from '../../channel-hub/ports/types';
 import { InstagramContactEnricherService } from '../../channel-hub/adapters/instagram/instagram-contact-enricher.service';
@@ -96,6 +97,7 @@ export class InboundMessageProcessor extends WorkerHost {
     private readonly transcription: TranscriptionService,
     private readonly outbox: OutboxService,
     private readonly watchdog: WatchdogService,
+    private readonly outboundWebhook: OutboundWebhookService,
     @InjectQueue('chatbot-processor') private readonly chatbotQueue: Queue,
   ) {
     super();
@@ -244,6 +246,17 @@ export class InboundMessageProcessor extends WorkerHost {
       this.realtimeGateway.emitToConversation(conversationId, 'message:new', {
         message: savedMessage,
       });
+
+      // Espelha mensagens novas de entrada para um CRM externo (webhook de
+      // saída assinado). Best-effort; não bloqueia o pipeline.
+      if (isNew && direction === MessageDirection.INBOUND) {
+        void this.outboundWebhook.emitMessageInbound({
+          channelId,
+          conversationId,
+          savedMessage,
+          normalized: message,
+        });
+      }
 
       if (
         !isEcho &&
