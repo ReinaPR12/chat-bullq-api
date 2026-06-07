@@ -7,6 +7,7 @@ import { WatchdogModule } from '../routing/watchdog/watchdog.module';
 import { IdempotencyService } from './pipeline/idempotency.service';
 import { ContactResolverService } from './pipeline/contact-resolver.service';
 import { ConversationResolverService } from './pipeline/conversation-resolver.service';
+import { OutboundWebhookService } from './pipeline/outbound-webhook.service';
 import { HistoryImportService } from './pipeline/history-import.service';
 import { InboundMessageProcessor } from './pipeline/inbound-message.processor';
 import { OutboundMessageProcessor } from './pipeline/outbound-message.processor';
@@ -41,6 +42,7 @@ import { ContactsRepository } from './contacts/contacts.repository';
     IdempotencyService,
     ContactResolverService,
     ConversationResolverService,
+    OutboundWebhookService,
     HistoryImportService,
     InboundMessageProcessor,
     OutboundMessageProcessor,
@@ -55,6 +57,6 @@ import { ContactsRepository } from './contacts/contacts.repository';
     ContactsService,
     ContactsRepository,
   ],
-  exports: [ConversationsService, MessagesService, ConversationFsmService, ContactsService, HistoryImportService, UploadsService],
+  exports: [ConversationsService, MessagesService, ConversationFsmService, ContactsService, HistoryImportService, UploadsService, ContactResolverService, ConversationResolverService],
 })
 export class MessagingModule {}
