@@ -19,7 +19,9 @@ async function bootstrap() {
   // helmet blocks cross-origin media by default; relax that for <audio>/<img>
   // tags served by this API (same origin, but browsers enforce CORP).
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-  app.setGlobalPrefix('api/v1');
+  // Rotas `public/*` (API externa por API key, ex.: integração CRM Meridial)
+  // ficam fora do prefixo /api/v1 para um contrato estável (`/public/messages`).
+  app.setGlobalPrefix('api/v1', { exclude: ['public/(.*)'] });
 
   // Serve locally-stored user uploads (audio, etc.) before the global prefix
   // kicks in. This is set up pre-prefix so the path matches both in dev and
