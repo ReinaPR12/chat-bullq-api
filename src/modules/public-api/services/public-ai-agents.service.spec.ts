@@ -10,10 +10,11 @@ import type { PublicAiAgentsCaller } from './public-ai-agents.service';
  *     delegate to the internal services scoped to the API-key org, and
  *     cross-org NotFound propagates unchanged.
  *
- *  2. Pending-action ownership — pending actions have no org column, so this
- *     layer resolves the parent conversation's org and (a) drops foreign
- *     actions from the list, (b) refuses confirm/reject of foreign actions
- *     with NotFound (indistinguishable from "does not exist").
+ *  2. Pending-action ownership — every query is scoped to the API-key org at
+ *     the data layer (organizationId passed through), and the parent-
+ *     conversation join is kept as belt-and-suspenders: this layer (a) drops
+ *     foreign actions from the list, (b) refuses confirm/reject of foreign
+ *     actions with NotFound (indistinguishable from "does not exist").
  */
 describe('PublicAiAgentsService', () => {
   let agents: jest.Mocked<any>;
@@ -139,7 +140,12 @@ describe('PublicAiAgentsService', () => {
     prisma.conversation.findMany.mockResolvedValue([{ id: 'c1' }]);
 
     const res = await service.listPendingActions(caller);
-    expect(pendingActions.listByStatus).toHaveBeenCalledWith('PENDING');
+    // Data-layer org scoping: status + org passed to the query.
+    expect(pendingActions.listByStatus).toHaveBeenCalledWith(
+      'PENDING',
+      undefined,
+      'org-A',
+    );
     expect(prisma.conversation.findMany).toHaveBeenCalledWith({
       where: { id: { in: ['c1', 'c-foreign'] }, organizationId: 'org-A' },
       select: { id: true },
@@ -162,7 +168,9 @@ describe('PublicAiAgentsService', () => {
     pendingActions.approve.mockResolvedValue({ id: 'p1', status: 'APPROVED' });
 
     const res = await service.confirmPendingAction('p1', caller);
-    expect(pendingActions.approve).toHaveBeenCalledWith('p1', 'user-1');
+    // Ownership check fetches scoped by org; approve also passes org.
+    expect(pendingActions.get).toHaveBeenCalledWith('p1', 'org-A');
+    expect(pendingActions.approve).toHaveBeenCalledWith('p1', 'user-1', 'org-A');
     expect(res).toEqual({ id: 'p1', status: 'APPROVED' });
   });
 
@@ -185,6 +193,18 @@ describe('PublicAiAgentsService', () => {
     expect(pendingActions.approve).not.toHaveBeenCalled();
   });
 
+  it('confirmPendingAction: data-layer org scoping makes a cross-org id resolve to NotFound', async () => {
+    // org-scoped get() returns null for an action owned by another tenant —
+    // isolation enforced at the column, before the conversation join.
+    pendingActions.get.mockResolvedValue(null);
+    await expect(
+      service.confirmPendingAction('p-foreign', caller),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(pendingActions.get).toHaveBeenCalledWith('p-foreign', 'org-A');
+    expect(prisma.conversation.findMany).not.toHaveBeenCalled();
+    expect(pendingActions.approve).not.toHaveBeenCalled();
+  });
+
   it('rejectPendingAction: rejects when owned and forwards reason + actor', async () => {
     pendingActions.get.mockResolvedValue({ id: 'p1', conversationId: 'c1' });
     prisma.conversation.findMany.mockResolvedValue([{ id: 'c1' }]);
@@ -195,6 +215,7 @@ describe('PublicAiAgentsService', () => {
       'p1',
       'user-1',
       'não autorizado',
+      'org-A',
     );
   });
 

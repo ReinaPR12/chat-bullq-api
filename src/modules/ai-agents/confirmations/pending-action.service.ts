@@ -42,6 +42,7 @@ export class PendingActionService {
 
     const action: PendingAction = {
       id: randomUUID(),
+      organizationId: input.organizationId,
       agentRunId: input.agentRunId,
       conversationId: input.conversationId,
       agentId: input.agentId,
@@ -74,8 +75,12 @@ export class PendingActionService {
    * Phase 2 TODO: enqueue the actual execution of `action.toolName`
    * with `action.args` and persist `executionResult` once it runs.
    */
-  async approve(id: string, userId: string): Promise<PendingAction> {
-    const action = await this.storage.get(id);
+  async approve(
+    id: string,
+    userId: string,
+    organizationId?: string,
+  ): Promise<PendingAction> {
+    const action = await this.storage.get(id, organizationId);
     if (!action) throw new NotFoundException('Pending action not found');
 
     if (action.status !== 'PENDING') {
@@ -130,12 +135,13 @@ export class PendingActionService {
     id: string,
     userId: string,
     reason: string,
+    organizationId?: string,
   ): Promise<PendingAction> {
     if (!reason || !reason.trim()) {
       throw new BadRequestException('Rejection reason is required');
     }
 
-    const action = await this.storage.get(id);
+    const action = await this.storage.get(id, organizationId);
     if (!action) throw new NotFoundException('Pending action not found');
 
     if (action.status !== 'PENDING') {
@@ -168,26 +174,36 @@ export class PendingActionService {
     return action;
   }
 
-  /** List PENDING actions, optionally filtered by conversation. */
-  async listPending(conversationId?: string): Promise<PendingAction[]> {
-    return this.storage.listByStatus('PENDING', conversationId);
+  /** List PENDING actions, optionally filtered by conversation/org. */
+  async listPending(
+    conversationId?: string,
+    organizationId?: string,
+  ): Promise<PendingAction[]> {
+    return this.storage.listByStatus('PENDING', conversationId, organizationId);
   }
 
-  /** List actions for a given status. */
+  /** List actions for a given status, optionally scoped to an org. */
   async listByStatus(
     status: PendingActionStatus,
     conversationId?: string,
+    organizationId?: string,
   ): Promise<PendingAction[]> {
-    return this.storage.listByStatus(status, conversationId);
+    return this.storage.listByStatus(status, conversationId, organizationId);
   }
 
   /** List every action (any status) for a conversation. */
-  async listForConversation(conversationId: string): Promise<PendingAction[]> {
-    return this.storage.listByConversation(conversationId);
+  async listForConversation(
+    conversationId: string,
+    organizationId?: string,
+  ): Promise<PendingAction[]> {
+    return this.storage.listByConversation(conversationId, organizationId);
   }
 
-  async get(id: string): Promise<PendingAction | null> {
-    return this.storage.get(id);
+  async get(
+    id: string,
+    organizationId?: string,
+  ): Promise<PendingAction | null> {
+    return this.storage.get(id, organizationId);
   }
 
   /**

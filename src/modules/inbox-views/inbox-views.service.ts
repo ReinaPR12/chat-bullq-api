@@ -80,7 +80,7 @@ export class InboxViewsService {
     if (missing.length === 0) return;
 
     const max = await this.prisma.inboxView.findFirst({
-      where: { userId },
+      where: { organizationId, userId },
       orderBy: { order: 'desc' },
       select: { order: true },
     });
@@ -117,7 +117,7 @@ export class InboxViewsService {
     dto: CreateInboxViewDto,
   ) {
     const max = await this.prisma.inboxView.findFirst({
-      where: { userId },
+      where: { organizationId, userId },
       orderBy: { order: 'desc' },
       select: { order: true },
     });

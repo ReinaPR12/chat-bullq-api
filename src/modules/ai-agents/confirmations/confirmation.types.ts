@@ -44,6 +44,11 @@ export interface ActionPreview {
 export interface PendingAction {
   /** UUID v4 */
   id: string;
+  /**
+   * Tenant owner. Always set on records created after the org-isolation
+   * migration; may be undefined for legacy rows created before the backfill.
+   */
+  organizationId?: string;
   /** Run that produced this pending action. */
   agentRunId: string;
   conversationId: string;
@@ -73,6 +78,8 @@ export interface PendingAction {
 }
 
 export interface CreatePendingActionInput {
+  /** Tenant owner — taken from the tool context (ctx.organizationId). */
+  organizationId: string;
   agentRunId: string;
   conversationId: string;
   agentId: string;

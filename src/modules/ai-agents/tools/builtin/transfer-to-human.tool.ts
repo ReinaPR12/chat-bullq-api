@@ -67,6 +67,7 @@ export class TransferToHumanTool implements AiTool {
     };
 
     const action = await this.pendingActions.create({
+      organizationId: ctx.organizationId,
       agentRunId: ctx.runId,
       conversationId: ctx.conversationId,
       agentId: ctx.agentId,
