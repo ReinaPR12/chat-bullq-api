@@ -8,5 +8,6 @@ import { ChannelAccessModule } from '../iam/channel-access/channel-access.module
   imports: [forwardRef(() => MessagingModule), ChannelAccessModule],
   controllers: [InboxViewsController],
   providers: [InboxViewsService],
+  exports: [InboxViewsService],
 })
 export class InboxViewsModule {}
