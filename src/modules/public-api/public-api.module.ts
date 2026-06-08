@@ -8,6 +8,7 @@ import { PublicInboxViewsController } from './controllers/public-inbox-views.con
 import { PublicChatbotController } from './controllers/public-chatbot.controller';
 import { PublicAiAgentsController } from './controllers/public-ai-agents.controller';
 import { PublicConversationAiController } from './controllers/public-conversation-ai.controller';
+import { PublicConversationsController } from './controllers/public-conversations.controller';
 import { PublicAiAgentsService } from './services/public-ai-agents.service';
 import { PublicMessagesService } from './services/public-messages.service';
 import { PublicChannelsService } from './services/public-channels.service';
@@ -15,6 +16,7 @@ import { PublicMediaService } from './services/public-media.service';
 import { PublicTagsService } from './services/public-tags.service';
 import { PublicInboxViewsService } from './services/public-inbox-views.service';
 import { PublicChatbotService } from './services/public-chatbot.service';
+import { PublicConversationsService } from './services/public-conversations.service';
 import { ChatbotModule } from '../chatbot/chatbot.module';
 import { MessageNodeExecutor } from '../chatbot/engine/node-executors/message-node.executor';
 import { MenuNodeExecutor } from '../chatbot/engine/node-executors/menu-node.executor';
@@ -50,6 +52,7 @@ import { AiAgentsModule } from '../ai-agents/ai-agents.module';
     PublicChatbotController,
     PublicAiAgentsController,
     PublicConversationAiController,
+    PublicConversationsController,
   ],
   providers: [
     PublicMessagesService,
@@ -59,6 +62,7 @@ import { AiAgentsModule } from '../ai-agents/ai-agents.module';
     PublicInboxViewsService,
     PublicChatbotService,
     PublicAiAgentsService,
+    PublicConversationsService,
     MessageNodeExecutor,
     MenuNodeExecutor,
     ConditionNodeExecutor,
