@@ -6,6 +6,9 @@ import { PublicChannelsController } from './controllers/public-channels.controll
 import { PublicTagsController } from './controllers/public-tags.controller';
 import { PublicInboxViewsController } from './controllers/public-inbox-views.controller';
 import { PublicChatbotController } from './controllers/public-chatbot.controller';
+import { PublicAiAgentsController } from './controllers/public-ai-agents.controller';
+import { PublicConversationAiController } from './controllers/public-conversation-ai.controller';
+import { PublicAiAgentsService } from './services/public-ai-agents.service';
 import { PublicMessagesService } from './services/public-messages.service';
 import { PublicChannelsService } from './services/public-channels.service';
 import { PublicMediaService } from './services/public-media.service';
@@ -24,6 +27,7 @@ import { MessagingModule } from '../messaging/messaging.module';
 import { ChannelHubModule } from '../channel-hub/channel-hub.module';
 import { TagsModule } from '../tags/tags.module';
 import { InboxViewsModule } from '../inbox-views/inbox-views.module';
+import { AiAgentsModule } from '../ai-agents/ai-agents.module';
 
 @Module({
   imports: [
@@ -34,6 +38,7 @@ import { InboxViewsModule } from '../inbox-views/inbox-views.module';
     TagsModule,
     InboxViewsModule,
     ChatbotModule,
+    AiAgentsModule,
   ],
   controllers: [
     PublicMeController,
@@ -43,6 +48,8 @@ import { InboxViewsModule } from '../inbox-views/inbox-views.module';
     PublicTagsController,
     PublicInboxViewsController,
     PublicChatbotController,
+    PublicAiAgentsController,
+    PublicConversationAiController,
   ],
   providers: [
     PublicMessagesService,
@@ -51,6 +58,7 @@ import { InboxViewsModule } from '../inbox-views/inbox-views.module';
     PublicTagsService,
     PublicInboxViewsService,
     PublicChatbotService,
+    PublicAiAgentsService,
     MessageNodeExecutor,
     MenuNodeExecutor,
     ConditionNodeExecutor,

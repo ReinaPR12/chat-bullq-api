@@ -56,6 +56,15 @@ import { EvalsModule } from './evals/evals.module';
     CatalogSyncService,
     MediaUrlResolverService,
   ],
-  exports: [AiAgentRunnerService, AgentRouterService],
+  exports: [
+    AiAgentRunnerService,
+    AgentRouterService,
+    AgentsService,
+    SkillsCatalogService,
+    ToolsCatalogService,
+    // Re-export so the Public API can reuse PendingActionService without
+    // re-declaring the confirmations providers.
+    ConfirmationsModule,
+  ],
 })
 export class AiAgentsModule {}
