@@ -60,6 +60,54 @@ export class OutboundWebhookService {
       },
     };
 
+    await this.deliver(payload, `conv=${conversationId}`);
+  }
+
+  /**
+   * Emite a atualização de status de uma mensagem (ack do provider) para o CRM.
+   * Evento `message.status`. O CRM casa a mensagem pelo `externalMessageId`
+   * (ou `messageId` interno) e normaliza `status` (queued|sent|delivered|read|failed).
+   *
+   * Mesmo transporte/assinatura HMAC do {@link emitMessageInbound}. Best-effort:
+   * falha de entrega NÃO interrompe o pipeline de status.
+   *
+   * A idempotência (não floodar o mesmo status repetido) é responsabilidade do
+   * caller — só chamar quando o status de fato avançou.
+   */
+  async emitMessageStatus(params: {
+    channelId: string;
+    conversationId: string;
+    messageId: string;
+    externalMessageId?: string | null;
+    status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
+    timestamp?: Date;
+    errorMessage?: string | null;
+  }): Promise<void> {
+    if (!this.enabled) return;
+
+    const { channelId, conversationId, messageId, externalMessageId, status } = params;
+    const payload = {
+      event: 'message.status',
+      channelId,
+      conversationId,
+      message: {
+        id: messageId,
+        externalMessageId: externalMessageId ?? null,
+        status,
+        errorMessage: params.errorMessage ?? null,
+        timestamp:
+          (params.timestamp ?? new Date()).toISOString?.() ?? new Date().toISOString(),
+      },
+    };
+
+    await this.deliver(payload, `conv=${conversationId} msg=${messageId} status=${status}`);
+  }
+
+  /**
+   * POST assinado (HMAC-SHA256, header x-bullq-signature) para o CRM_WEBHOOK_URL.
+   * Fire-and-forget: erros são logados, nunca propagados.
+   */
+  private async deliver(payload: unknown, context: string): Promise<void> {
     try {
       const body = JSON.stringify(payload);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -68,9 +116,9 @@ export class OutboundWebhookService {
       }
       await axios.post(this.url, body, { headers, timeout: 8000 });
     } catch (error) {
-      // Não propaga: o inbound já foi persistido; entrega ao CRM é best-effort.
+      // Não propaga: a origem (inbound/status) já foi persistida; entrega ao CRM é best-effort.
       this.logger.warn(
-        `Falha ao entregar webhook de saída ao CRM (conv=${conversationId}): ${
+        `Falha ao entregar webhook de saída ao CRM (${context}): ${
           (error as Error)?.message
         }`,
       );
