@@ -626,8 +626,9 @@ export class InboundMessageProcessor extends WorkerHost {
     });
     if (!message) return;
 
+    const nextStatus = this.maxStatus(message.status, dbStatus);
     const updateData: Record<string, any> = {
-      status: this.maxStatus(message.status, dbStatus),
+      status: nextStatus,
     };
     if (dbStatus === MessageStatus.SENT && !message.sentAt) {
       updateData.sentAt = status.timestamp;
@@ -658,6 +659,22 @@ export class InboundMessageProcessor extends WorkerHost {
       payload,
     );
 
+    // Espelha o status para o CRM externo (webhook de saída assinado), mas só
+    // quando o status DE FATO avançou — `maxStatus` nunca regride, então se o
+    // resultado igualar o status anterior é um ack repetido/atrasado e não há
+    // nada novo a propagar. Isso garante idempotência/sem flood. Best-effort.
+    if (updated.status !== message.status) {
+      void this.outboundWebhook.emitMessageStatus({
+        channelId,
+        conversationId: message.conversationId,
+        messageId: message.id,
+        externalMessageId: message.externalId,
+        status: this.toCrmStatus(updated.status),
+        timestamp: status.timestamp,
+        errorMessage: status.errorMessage,
+      });
+    }
+
     if (webhookEventId) await this.webhookEvents.markProcessed(webhookEventId);
 
     return { updated: message.id, status: updated.status };
@@ -680,7 +697,7 @@ export class InboundMessageProcessor extends WorkerHost {
         sentAt: { lte: watermark },
         conversation: { channelId },
       },
-      select: { id: true, conversationId: true },
+      select: { id: true, conversationId: true, externalId: true },
       take: 500,
     });
     if (candidates.length === 0) return;
@@ -703,8 +720,39 @@ export class InboundMessageProcessor extends WorkerHost {
       });
     }
 
+    // Espelha cada READ recém-aplicado para o CRM. Os candidatos vinham de
+    // SENT/DELIVERED, logo todos avançaram de fato — sem flood. Best-effort.
+    for (const c of candidates) {
+      void this.outboundWebhook.emitMessageStatus({
+        channelId,
+        conversationId: c.conversationId,
+        messageId: c.id,
+        externalMessageId: c.externalId,
+        status: 'read',
+        timestamp: watermark,
+      });
+    }
+
     if (webhookEventId) await this.webhookEvents.markProcessed(webhookEventId);
     return { updated: candidates.length, status: MessageStatus.READ };
+  }
+
+  /**
+   * Mapeia o enum interno {@link MessageStatus} para o vocabulário que o CRM
+   * espera no webhook `message.status` (o parser `normalize_status` do CRM
+   * casa exatamente com estas strings).
+   */
+  private toCrmStatus(
+    status: MessageStatus,
+  ): 'queued' | 'sent' | 'delivered' | 'read' | 'failed' {
+    const map: Record<MessageStatus, 'queued' | 'sent' | 'delivered' | 'read' | 'failed'> = {
+      [MessageStatus.QUEUED]: 'queued',
+      [MessageStatus.SENT]: 'sent',
+      [MessageStatus.DELIVERED]: 'delivered',
+      [MessageStatus.READ]: 'read',
+      [MessageStatus.FAILED]: 'failed',
+    };
+    return map[status];
   }
 
   private maxStatus(current: MessageStatus, next: MessageStatus): MessageStatus {
