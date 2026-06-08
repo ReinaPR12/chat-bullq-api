@@ -191,6 +191,7 @@ model Organization {
   aiAgents      AiAgent[]
   aiTools       AiTool[]
   aiSkills      AiSkill[]
+  aiPendingActions AiPendingAction[]
   inboxViews    InboxView[]
   pipelines     Pipeline[]
   cards         Card[]
@@ -1176,6 +1177,10 @@ enum AiPendingActionImpact {
 
 model AiPendingAction {
   id             String                @id @default(cuid())
+  /// Tenant owner. Nullable for the additive backfill migration; populated at
+  /// create() from the run/conversation org. Once backfilled it is always set,
+  /// and every PendingActionService query filters by it for data-layer isolation.
+  organizationId String?               @map("organization_id")
   agentRunId     String                @map("agent_run_id")
   conversationId String                @map("conversation_id")
   agentId        String                @map("agent_id")
@@ -1196,13 +1201,15 @@ model AiPendingAction {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  run          AiAgentRun   @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  agent        AiAgent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  run          AiAgentRun    @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  agent        AiAgent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, status], name: "idx_ai_pending_conv_status")
   @@index([status, expiresAt], name: "idx_ai_pending_status_exp")
   @@index([agentRunId], name: "idx_ai_pending_run")
+  @@index([organizationId, status], name: "idx_ai_pending_org_status")
   @@map("ai_pending_actions")
 }
 

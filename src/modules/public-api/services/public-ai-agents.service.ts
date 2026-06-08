@@ -24,11 +24,11 @@ export interface PublicAiAgentsCaller {
  *   - Skills/Tools catalog list/findOne are org-scoped.
  *   - ConversationsService.toggleAi calls findOne(org) before mutating.
  *
- * The ONE exception is PendingActionService: pending actions are stored keyed
- * by conversationId/agentId with NO organizationId column, so this layer must
- * verify ownership itself by resolving the action's conversation back to the
- * caller org. Without that check, an attacker with a valid key could read or
- * confirm another tenant's pending actions by guessing ids.
+ * PendingActionService now carries an organizationId column, so isolation is
+ * enforced at the data layer: every query here passes caller.organizationId
+ * and a cross-org id resolves to "not found". This layer additionally keeps
+ * the conversation-join ownership check as belt-and-suspenders (covers any
+ * legacy row created before the org-isolation backfill).
  *
  * This wrapper does NOT reimplement any AI logic — it only exposes existing
  * behaviour behind the API key.
@@ -101,9 +101,16 @@ export class PublicAiAgentsService {
   async listPendingActions(
     caller: PublicAiAgentsCaller,
   ): Promise<PendingAction[]> {
-    const pending = await this.pendingActions.listByStatus('PENDING');
+    // Data-layer isolation: filter by organizationId in the query itself.
+    const pending = await this.pendingActions.listByStatus(
+      'PENDING',
+      undefined,
+      caller.organizationId,
+    );
     if (pending.length === 0) return [];
 
+    // Belt-and-suspenders: also drop anything whose conversation no longer
+    // resolves to the caller org (covers any legacy row not yet backfilled).
     const ownedConversationIds = await this.filterConversationsByOrg(
       pending.map((p) => p.conversationId),
       caller.organizationId,
@@ -116,7 +123,12 @@ export class PublicAiAgentsService {
     caller: PublicAiAgentsCaller,
   ): Promise<PendingAction> {
     await this.assertPendingActionOwnership(id, caller.organizationId);
-    return this.pendingActions.approve(id, caller.actorId);
+    // Pass org so the data layer denies cross-org by column too.
+    return this.pendingActions.approve(
+      id,
+      caller.actorId,
+      caller.organizationId,
+    );
   }
 
   async rejectPendingAction(
@@ -125,7 +137,12 @@ export class PublicAiAgentsService {
     caller: PublicAiAgentsCaller,
   ): Promise<PendingAction> {
     await this.assertPendingActionOwnership(id, caller.organizationId);
-    return this.pendingActions.reject(id, caller.actorId, reason);
+    return this.pendingActions.reject(
+      id,
+      caller.actorId,
+      reason,
+      caller.organizationId,
+    );
   }
 
   // ─── AI toggle por conversa ─────────────────────────────────────
@@ -161,9 +178,11 @@ export class PublicAiAgentsService {
     id: string,
     organizationId: string,
   ): Promise<void> {
-    const action = await this.pendingActions.get(id);
+    // Primary check: data-layer org column (a cross-org id resolves to null).
+    const action = await this.pendingActions.get(id, organizationId);
     if (!action) throw new NotFoundException('Pending action not found');
 
+    // Belt-and-suspenders: re-derive the org through the parent conversation.
     const owned = await this.filterConversationsByOrg(
       [action.conversationId],
       organizationId,

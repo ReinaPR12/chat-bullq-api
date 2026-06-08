@@ -29,6 +29,7 @@ export class PendingActionStorage {
       where: { id: action.id },
       create: {
         id: action.id,
+        organizationId: action.organizationId ?? null,
         agentRunId: action.agentRunId,
         conversationId: action.conversationId,
         agentId: action.agentId,
@@ -58,28 +59,48 @@ export class PendingActionStorage {
     });
   }
 
-  async get(id: string): Promise<PendingAction | null> {
-    const row = await this.prisma.aiPendingAction.findUnique({ where: { id } });
+  /**
+   * Fetch a single action by id. When `organizationId` is supplied the lookup
+   * is scoped to that tenant — a cross-org id resolves to `null` (looks like it
+   * does not exist), enforcing isolation at the data layer.
+   */
+  async get(
+    id: string,
+    organizationId?: string,
+  ): Promise<PendingAction | null> {
+    const row = organizationId
+      ? await this.prisma.aiPendingAction.findFirst({
+          where: { id, organizationId },
+        })
+      : await this.prisma.aiPendingAction.findUnique({ where: { id } });
     return row ? this.toDomain(row) : null;
   }
 
   async listByStatus(
     status: PendingActionStatus,
     conversationId?: string,
+    organizationId?: string,
   ): Promise<PendingAction[]> {
     const rows = await this.prisma.aiPendingAction.findMany({
       where: {
         status,
         ...(conversationId ? { conversationId } : {}),
+        ...(organizationId ? { organizationId } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
     return rows.map((r) => this.toDomain(r));
   }
 
-  async listByConversation(conversationId: string): Promise<PendingAction[]> {
+  async listByConversation(
+    conversationId: string,
+    organizationId?: string,
+  ): Promise<PendingAction[]> {
     const rows = await this.prisma.aiPendingAction.findMany({
-      where: { conversationId },
+      where: {
+        conversationId,
+        ...(organizationId ? { organizationId } : {}),
+      },
       orderBy: { createdAt: 'desc' },
     });
     return rows.map((r) => this.toDomain(r));
@@ -87,6 +108,7 @@ export class PendingActionStorage {
 
   private toDomain(row: {
     id: string;
+    organizationId: string | null;
     agentRunId: string;
     conversationId: string;
     agentId: string;
@@ -105,6 +127,7 @@ export class PendingActionStorage {
   }): PendingAction {
     return {
       id: row.id,
+      organizationId: row.organizationId ?? undefined,
       agentRunId: row.agentRunId,
       conversationId: row.conversationId,
       agentId: row.agentId,
