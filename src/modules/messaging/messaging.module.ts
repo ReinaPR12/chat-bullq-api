@@ -57,6 +57,6 @@ import { ContactsRepository } from './contacts/contacts.repository';
     ContactsService,
     ContactsRepository,
   ],
-  exports: [ConversationsService, MessagesService, ConversationFsmService, ContactsService, HistoryImportService, UploadsService, ContactResolverService, ConversationResolverService],
+  exports: [ConversationsService, MessagesService, ConversationFsmService, ContactsService, HistoryImportService, UploadsService, ContactResolverService, ConversationResolverService, MediaResolverService, TranscriptionService],
 })
 export class MessagingModule {}
