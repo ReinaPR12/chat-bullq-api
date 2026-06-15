@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { ApiKeyAuthGuard } from '../../../common/guards';
 import { CurrentOrg, CurrentUser } from '../../../common/decorators';
@@ -19,18 +28,35 @@ export class PublicMessagesController {
   @Post()
   @ApiOperation({
     summary:
-      'Envia uma mensagem para um telefone (resolve/cria conversa). Server-to-server via API key.',
+      'Envia uma mensagem via API key. Use toPhone (resolve/cria conversa) ou conversationId (envia em conversa existente). Informe apenas um dos dois.',
   })
-  send(
+  async send(
     @Body() dto: PublicSendMessageDto,
     @CurrentUser('id') userId: string,
     @CurrentOrg('id') organizationId: string,
   ) {
+
+    if (dto.toPhone && dto.conversationId) {
+      throw new BadRequestException(
+        'Informe apenas um: toPhone ou conversationId',
+      );
+    }
+
+    if (dto.conversationId) {
+      return this.service.sendToConversation({
+        organizationId,
+        senderId: userId,
+        conversationId: dto.conversationId,
+        type: dto.type ?? 'TEXT',
+        content: dto.content,
+      });
+    }
+
     return this.service.sendToPhone({
       organizationId,
       senderId: userId,
       channelId: dto.channelId,
-      toPhone: dto.toPhone,
+      toPhone: dto.toPhone!,
       type: dto.type ?? 'TEXT',
       content: dto.content,
     });

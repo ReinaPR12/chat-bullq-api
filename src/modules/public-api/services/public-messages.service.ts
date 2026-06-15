@@ -1,5 +1,11 @@
 import { randomUUID } from 'crypto';
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { MessageContentType } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { ContactResolverService } from '../../messaging/pipeline/contact-resolver.service';
@@ -12,6 +18,14 @@ export interface PublicSendParams {
   senderId: string;
   channelId: string;
   toPhone: string;
+  type?: string;
+  content: Record<string, any>;
+}
+
+export interface PublicSendByConversationParams {
+  organizationId: string;
+  senderId: string;
+  conversationId: string;
   type?: string;
   content: Record<string, any>;
 }
@@ -85,6 +99,51 @@ export class PublicMessagesService {
       id: (message as any)?.id ?? null,
       conversationId: conversation.conversationId,
       contactId: contact.contactId,
+      externalMessageId: (message as any)?.externalId ?? null,
+      status: (message as any)?.status ?? 'QUEUED',
+    };
+  }
+
+  /**
+   * Envia diretamente em uma conversa existente, identificada por
+   * conversationId. Valida que a conversa pertence à org da API key
+   * (multi-tenant fence) e delega ao mesmo MessagesService usado por
+   * sendToPhone — garantindo o mesmo pipeline de enfileiramento BullMQ,
+   * realtime e auto-pause de IA.
+   */
+  async sendToConversation(params: PublicSendByConversationParams) {
+    const { organizationId, senderId, conversationId, content } = params;
+    const type = params.type ?? 'TEXT';
+
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    if (conversation.organizationId !== organizationId) {
+      throw new ForbiddenException(
+        'Conversation does not belong to this organization',
+      );
+    }
+
+    const message = await this.messagesService.send(
+      { conversationId, type, content },
+      senderId,
+      organizationId,
+      'ALL',
+    );
+
+    this.logger.log(
+      `Public send (by conversationId) enfileirado: conv=${conversationId} msg=${(message as any)?.id}`,
+    );
+
+    return {
+      id: (message as any)?.id ?? null,
+      conversationId,
+      contactId: conversation.contactId,
       externalMessageId: (message as any)?.externalId ?? null,
       status: (message as any)?.status ?? 'QUEUED',
     };
